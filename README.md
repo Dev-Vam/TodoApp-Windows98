@@ -56,7 +56,7 @@ npm start
 
 ### Building for Production
 
-To build the application for Windows:
+To build the application:
 
 ```bash
 npm run build
@@ -67,7 +67,7 @@ This will create a distributable installer in the `dist` folder.
 ## Project Structure
 
 ```
-kyujin/
+/
 ├── app.js          # Main React component with TODO logic
 ├── main.js         # Electron main process
 ├── preload.js      # Electron preload script for IPC

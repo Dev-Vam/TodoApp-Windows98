@@ -1,6 +1,8 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 
+const NEWS_API_KEY = '241ae247f6e54329865a7e2a6ae228f1';
+
 let mainWindow;
 
 function createWindow() {
@@ -18,51 +20,30 @@ function createWindow() {
     }
   });
 
-  // Remove the default menu
   Menu.setApplicationMenu(null);
-
   mainWindow.loadFile('index.html');
-
-  // Uncomment for debugging
-  // mainWindow.webContents.openDevTools();
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
 }
 
-// Handle window controls
-ipcMain.on('window-minimize', () => {
-  if (mainWindow) mainWindow.minimize();
-});
-
+ipcMain.on('window-minimize', () => mainWindow?.minimize());
 ipcMain.on('window-maximize', () => {
-  if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
-    }
+  if (!mainWindow) return;
+  mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+});
+ipcMain.on('window-close', () => mainWindow?.close());
+
+ipcMain.handle('fetch-news', async () => {
+  try {
+    const res = await fetch(
+      `https://newsapi.org/v2/top-headlines?country=us&category=technology&pageSize=10&apiKey=${NEWS_API_KEY}`
+    );
+    return await res.json();
+  } catch {
+    return { articles: [] };
   }
 });
 
-ipcMain.on('window-close', () => {
-  if (mainWindow) mainWindow.close();
-});
-
-app.whenReady().then(() => {
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
+app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
-

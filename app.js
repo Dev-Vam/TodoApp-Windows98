@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 const Win98Todo = () => {
   // Initialize todos from localStorage or use defaults
@@ -24,23 +24,113 @@ const Win98Todo = () => {
   const [newTodo, setNewTodo] = useState('');
   const [newPriority, setNewPriority] = useState('normal');
   const [newDueDate, setNewDueDate] = useState('');
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAbout, setShowAbout] = useState(false);
+  const [showNews, setShowNews] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
   const [showEditMenu, setShowEditMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
+  const [easterEggType, setEasterEggType] = useState('');
   const [filter, setFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [newsArticles, setNewsArticles] = useState([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [konamiCode, setKonamiCode] = useState([]);
+  const [clickCount, setClickCount] = useState(0);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [calcDisplay, setCalcDisplay] = useState('0');
+  const clickTimer = useRef(null);
 
+  // Easter Egg: Konami Code (↑↑↓↓←→←→BA)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const code = [...konamiCode, e.key].slice(-10);
+      setKonamiCode(code);
+      
+      // Check for Konami code
+      const konamiPattern = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+      if (code.join(',') === konamiPattern.join(',')) {
+        setEasterEggType('konami');
+        setShowEasterEgg(true);
+        setKonamiCode([]);
+      }
+
+      // Easter Egg: Type "clippy"
+      const recent = code.slice(-6).join('');
+      if (recent === 'clippy') {
+        setEasterEggType('clippy');
+        setShowEasterEgg(true);
+        setKonamiCode([]);
+      }
+
+      // Easter Egg: Type "retro"
+      if (recent.includes('retro')) {
+        setEasterEggType('retro');
+        setShowEasterEgg(true);
+        setKonamiCode([]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [konamiCode]);
+
+  // Easter Egg: Click title 10 times
+  const handleTitleClick = () => {
+    const newCount = clickCount + 1;
+    setClickCount(newCount);
+    
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+    
+    if (newCount >= 10) {
+      setEasterEggType('secret');
+      setShowEasterEgg(true);
+      setClickCount(0);
+    } else {
+      clickTimer.current = setTimeout(() => setClickCount(0), 2000);
+    }
+  };
 
   // Save todos to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('win98-todos', JSON.stringify(todos));
   }, [todos]);
 
+  // Fetch news when news panel opens
+  useEffect(() => {
+    if (showNews && newsArticles.length === 0) {
+      fetchNews();
+    }
+  }, [showNews]);
+
+  const fetchNews = async () => {
+    setLoadingNews(true);
+  
+    try {
+      const data = await window.electronAPI.fetchNews();
+  
+      if (data?.articles?.length) {
+        setNewsArticles(
+          data.articles.map((a, i) => ({
+            id: i,
+            title: a.title,
+            description: a.description || 'No description available',
+            date: new Date(a.publishedAt).toLocaleDateString(),
+            source: a.source.name,
+            url: a.url
+          }))
+        );
+      } else {
+        setNewsArticles([]);
+      }
+    } catch {
+      setNewsArticles([]);
+    }
+  
+    setLoadingNews(false);
+  };  
   const addTodo = () => {
     if (newTodo.trim()) {
       setTodos([...todos, { 
@@ -54,6 +144,14 @@ const Win98Todo = () => {
       setNewTodo('');
       setNewPriority('normal');
       setNewDueDate('');
+
+      // Easter egg: Add special task
+      if (newTodo.toLowerCase().includes('secret')) {
+        setTimeout(() => {
+          setEasterEggType('task');
+          setShowEasterEgg(true);
+        }, 500);
+      }
     }
   };
 
@@ -119,7 +217,23 @@ const Win98Todo = () => {
     return priorityOrder[a.priority] - priorityOrder[b.priority];
   });
 
-  // Using JSX syntax here - this will work with the React CDN
+  // Calculator functions
+  const handleCalcClick = (value) => {
+    if (value === 'C') {
+      setCalcDisplay('0');
+    } else if (value === '=') {
+      try {
+        setCalcDisplay(String(eval(calcDisplay)));
+      } catch {
+        setCalcDisplay('Error');
+      }
+    } else if (calcDisplay === '0' && value !== '.') {
+      setCalcDisplay(value);
+    } else {
+      setCalcDisplay(calcDisplay + value);
+    }
+  };
+
   return (
     <div className="w-full h-screen bg-[#008080] overflow-hidden select-none relative">
       <style>{`
@@ -175,6 +289,22 @@ const Win98Todo = () => {
         .title-button {
           -webkit-app-region: no-drag;
         }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        .bounce {
+          animation: bounce 0.5s ease infinite;
+        }
+        @keyframes rainbow {
+          0% { background-position: 0% 50%; }
+          100% { background-position: 100% 50%; }
+        }
+        .rainbow {
+          background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+          background-size: 200% 200%;
+          animation: rainbow 3s linear infinite;
+        }
       `}</style>
       
       <div
@@ -186,25 +316,35 @@ const Win98Todo = () => {
       >
         <div
           className="bg-gradient-to-r from-[#000080] to-[#1084d0] px-1 py-0.5 flex items-center justify-between title-bar"
+          onClick={handleTitleClick}
         >
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 bg-white border border-black flex items-center justify-center text-xs">
               📝
             </div>
-            <span className="text-white text-sm font-bold">TODO List</span>
+            <span className="text-white text-sm font-bold">TODO List - Windows 98</span>
           </div>
           <div className="flex gap-0.5">
             <button 
               className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
-              onClick={() => window.electronAPI?.minimizeWindow()}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.electronAPI?.minimizeWindow();
+              }}
             >_</button>
             <button 
               className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
-              onClick={() => window.electronAPI?.maximizeWindow()}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.electronAPI?.maximizeWindow();
+              }}
             >□</button>
             <button
               className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
-              onClick={() => window.electronAPI?.closeWindow()}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.electronAPI?.closeWindow();
+              }}
             >×</button>
           </div>
         </div>
@@ -278,7 +418,7 @@ const Win98Todo = () => {
                   className="px-4 py-1 hover:bg-[#000080] hover:text-white cursor-pointer"
                   onClick={() => {
                     setShowFileMenu(false);
-                    alert('Exit');
+                    window.electronAPI?.closeWindow();
                   }}
                 >
                   E<span className="underline">x</span>it
@@ -381,8 +521,29 @@ const Win98Todo = () => {
                 >
                   {filter === 'high' && '✓ '}<span className="underline">H</span>igh Priority
                 </div>
+                <div className="h-px bg-[#808080] my-1 mx-1"></div>
+                <div 
+                  className="px-4 py-1 hover:bg-[#000080] hover:text-white cursor-pointer"
+                  onClick={() => {
+                    setShowNews(true);
+                    setShowViewMenu(false);
+                  }}
+                >
+                  📰 <span className="underline">N</span>ews
+                </div>
               </div>
             )}
+          </div>
+
+          <div className="relative">
+            <div 
+              className="px-2 hover:bg-[#000080] hover:text-white cursor-pointer"
+              onClick={() => {
+                setShowCalculator(true);
+              }}
+            >
+              🧮 <span className="underline">T</span>ools
+            </div>
           </div>
           
           <div 
@@ -489,96 +650,306 @@ const Win98Todo = () => {
                           className="px-2 bg-[#c0c0c0] win98-button text-xs"
                         >
                           Save
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => startEdit(todo)}
-                          className="px-2 bg-[#c0c0c0] win98-button text-xs"
-                        >
-                          Edit
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteTodo(todo.id)}
-                        className="px-2 bg-[#c0c0c0] win98-button text-xs"
-                      >
-                        Del
-                      </button>
+                          </button>
+                  ) : (
+                    <button
+                      onClick={() => startEdit(todo)}
+                      className="px-2 bg-[#c0c0c0] win98-button text-xs"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteTodo(todo.id)}
+                    className="px-2 bg-[#c0c0c0] win98-button text-xs"
+                  >
+                    Del
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={clearCompleted}
+          className="px-3 py-1 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
+        >
+          Clear Completed
+        </button>
+        <div className="flex-1"></div>
+        <div className="text-xs text-gray-700 px-2 py-1">
+          {todos.filter(t => !t.completed).length} active | {todos.filter(t => t.completed).length} completed
+        </div>
+      </div>
+    </div>
+
+    <div className="bg-[#c0c0c0] border-t-2 border-white px-1 py-0.5 flex items-center gap-1">
+      <div className="win98-inset px-2 py-0.5 text-xs flex-1">
+        Filter: {filter.charAt(0).toUpperCase() + filter.slice(1)} | Made with 💞 by Vamerlen Madoucha
+      </div>
+      <div className="win98-inset px-2 py-0.5 text-xs">
+        {todos.length} total tasks
+      </div>
+    </div>
+  </div>
+
+  {/* Calculator Window */}
+  {showCalculator && (
+    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-[#c0c0c0] win98-border w-64">
+        <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] px-1 py-0.5 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-xl">🧮</span>
+            <span className="text-white text-sm font-bold">Calculator</span>
+          </div>
+          <button
+            className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
+            onClick={() => setShowCalculator(false)}
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="p-2">
+          <div className="win98-inset bg-white p-2 mb-2 text-right text-lg font-mono">
+            {calcDisplay}
+          </div>
+          
+          <div className="grid grid-cols-4 gap-1">
+            {['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', '=', '+'].map(btn => (
+              <button
+                key={btn}
+                onClick={() => handleCalcClick(btn)}
+                className="px-3 py-2 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
+              >
+                {btn}
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => handleCalcClick('C')}
+            className="w-full mt-1 px-3 py-2 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* News Window */}
+  {showNews && (
+    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-[#c0c0c0] win98-border w-[500px] h-[450px] flex flex-col">
+        <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] px-1 py-0.5 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-xl">📰</span>
+            <span className="text-white text-sm font-bold">Tech News</span>
+          </div>
+          <button
+            className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
+            onClick={() => setShowNews(false)}
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="p-2 flex-1 flex flex-col overflow-hidden">
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={fetchNews}
+              className="px-3 py-1 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
+              disabled={loadingNews}
+            >
+              {loadingNews ? 'Loading...' : '🔄 Refresh'}
+            </button>
+            <div className="text-xs text-gray-600 flex items-center">
+              Live tech news from around the web
+            </div>
+          </div>
+
+          <div className="win98-inset bg-white p-2 flex-1 overflow-y-auto">
+            {loadingNews ? (
+              <div className="text-center py-8 text-sm text-gray-600">📡 Loading news...</div>
+            ) : newsArticles.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-600">No news available</div>
+            ) : (
+              <div className="space-y-3">
+                {newsArticles.map((article, index) => (
+                  <div key={article.id || index} className="border-b border-gray-300 pb-3 hover:bg-gray-50 p-1">
+                    <div className="font-bold text-sm mb-1">{article.title}</div>
+                    <div className="text-xs text-gray-700 mb-1">{article.description}</div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>📌 {article.source || 'Unknown Source'}</span>
+                      <span>📅 {article.date || new Date().toLocaleDateString()}</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={clearCompleted}
-              className="px-3 py-1 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
-            >
-              Clear Completed
-            </button>
-            <div className="flex-1"></div>
-            <div className="text-xs text-gray-700 px-2 py-1">
-              {todos.filter(t => !t.completed).length} active | {todos.filter(t => t.completed).length} completed
-            </div>
-          </div>
         </div>
 
-        <div className="bg-[#c0c0c0] border-t-2 border-white px-1 py-0.5 flex items-center gap-1">
-          <div className="win98-inset px-2 py-0.5 text-xs flex-1">
-            Filter: {filter.charAt(0).toUpperCase() + filter.slice(1)}
-          </div>
+        <div className="bg-[#c0c0c0] border-t-2 border-white px-1 py-0.5">
           <div className="win98-inset px-2 py-0.5 text-xs">
-            {todos.length} total tasks
+            {newsArticles.length} articles loaded
           </div>
         </div>
       </div>
+    </div>
+  )}
 
-      {showAbout && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-[#c0c0c0] win98-border w-96">
-            <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] px-1 py-0.5 flex items-center justify-between">
-              <span className="text-white text-sm font-bold">About TODO List</span>
-              <button
-                className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
-                onClick={() => setShowAbout(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex">
-              <div className="w-24 bg-gradient-to-b from-teal-600 via-teal-700 to-teal-800 flex items-center justify-center p-3 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 to-transparent"></div>
-                <div className="text-white text-center relative z-10">
-                  <div className="text-5xl mb-1 font-bold drop-shadow-lg">📝</div>
-                  <div className="text-2xl font-bold tracking-wider mb-0.5">TODO</div>
-                  <div className="text-xs tracking-widest opacity-90">LIST</div>
-                </div>
+  {/* Easter Egg Windows */}
+  {showEasterEgg && (
+    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-[#c0c0c0] win98-border w-96">
+        <div className={`px-1 py-0.5 flex items-center justify-between ${easterEggType === 'konami' ? 'rainbow' : 'bg-gradient-to-r from-[#000080] to-[#1084d0]'}`}>
+          <span className="text-white text-sm font-bold">
+            {easterEggType === 'konami' && '🎮 Konami Code Activated!'}
+            {easterEggType === 'clippy' && '📎 Hey! It looks like you\'re organizing tasks!'}
+            {easterEggType === 'retro' && '💾 Retro Mode Unlocked!'}
+            {easterEggType === 'secret' && '🎉 Secret Menu Discovered!'}
+            {easterEggType === 'task' && '🔍 Easter Egg Task Found!'}
+          </span>
+          <button
+            className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
+            onClick={() => setShowEasterEgg(false)}
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="p-4 text-center">
+          {easterEggType === 'konami' && (
+            <>
+              <div className="text-6xl mb-4 bounce">🎮</div>
+              <div className="text-lg font-bold mb-2">You found the Konami Code!</div>
+              <div className="text-sm mb-4">↑↑↓↓←→←→BA - Classic!</div>
+              <div className="text-xs text-gray-700">
+                You've unlocked unlimited productivity power! (Just kidding, but you're awesome!)
               </div>
-              <div className="flex-1 p-4 bg-[#c0c0c0]">
-                <div className="text-lg font-bold mb-1">TODO List™</div>
-                <div className="text-xs mb-3">Version 4.5b1 [en]-98194</div>
-                <div className="text-xs mb-2 leading-relaxed">
-                  Copyright © 2025 Vamerlen Madoucha💞 All rights reserved.
-                </div>
-                <div className="text-xs text-gray-700 mb-2 leading-relaxed">
-                  This software is subject to the license agreement set forth in the <span className="text-blue-700 underline cursor-pointer">license</span>. Please read and agree to all terms before using this software.
-                </div>
-                <div className="text-xs text-gray-700 mb-3 leading-relaxed">
-                  TODO List and TODO List Organizer are trademarks of Vamerlen Madoucha registered in the U.S. and other countries.
-                </div>
-                <button
-                  onClick={() => setShowAbout(false)}
-                  className="px-8 py-1.5 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4] block mx-auto"
-                >
-                  OK
-                </button>
+            </>
+          )}
+          
+          {easterEggType === 'clippy' && (
+            <>
+              <div className="text-6xl mb-4">📎</div>
+              <div className="text-lg font-bold mb-2">Clippy Says Hello!</div>
+              <div className="text-sm mb-4 italic">
+                "It looks like you're writing a TODO list. Would you like help with that?"
               </div>
+              <div className="text-xs text-gray-700">
+                Remember me from Microsoft Office? Good times! 😊
+              </div>
+            </>
+          )}
+          
+          {easterEggType === 'retro' && (
+            <>
+              <div className="text-6xl mb-4">💾</div>
+              <div className="text-lg font-bold mb-2">Retro Mode Activated!</div>
+              <div className="text-sm mb-4">
+                Welcome back to 1998! Where floppy disks ruled and dial-up was king.
+              </div>
+              <div className="text-xs text-gray-700 font-mono">
+                &gt; LOAD "*",8,1<br/>
+                READY.
+              </div>
+            </>
+          )}
+          
+          {easterEggType === 'secret' && (
+            <>
+              <div className="text-6xl mb-4">🎉</div>
+              <div className="text-lg font-bold mb-2">You Found the Secret!</div>
+              <div className="text-sm mb-4">
+                You clicked the title bar 10 times! Here's your reward:
+              </div>
+              <div className="text-xs text-gray-700">
+                🏆 Achievement Unlocked: "The Persistent Clicker"<br/>
+                <br/>
+                Pro tip: Try typing "clippy" or "retro" or use the Konami code! ↑↑↓↓←→←→BA
+              </div>
+            </>
+          )}
+          
+          {easterEggType === 'task' && (
+            <>
+              <div className="text-6xl mb-4">🔍</div>
+              <div className="text-lg font-bold mb-2">Secret Task Detected!</div>
+              <div className="text-sm mb-4">
+                You added a task with the word "secret" in it!
+              </div>
+              <div className="text-xs text-gray-700">
+                🎯 Easter Egg Hunter Badge Earned!<br/>
+                Keep exploring for more surprises!
+              </div>
+            </>
+          )}
+          
+          <button
+            onClick={() => setShowEasterEgg(false)}
+            className="mt-4 px-8 py-1.5 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4]"
+          >
+            Awesome!
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* About Dialog */}
+  {showAbout && (
+    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-[#c0c0c0] win98-border w-96">
+        <div className="bg-gradient-to-r from-[#000080] to-[#1084d0] px-1 py-0.5 flex items-center justify-between">
+          <span className="text-white text-sm font-bold">About TODO List</span>
+          <button
+            className="title-button bg-[#c0c0c0] win98-border hover:bg-[#d4d4d4]"
+            onClick={() => setShowAbout(false)}
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex">
+          <div className="w-24 bg-gradient-to-b from-teal-600 via-teal-700 to-teal-800 flex items-center justify-center p-3 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 to-transparent"></div>
+            <div className="text-white text-center relative z-10">
+              <div className="text-5xl mb-1 font-bold drop-shadow-lg">📝</div>
+              <div className="text-2xl font-bold tracking-wider mb-0.5">TODO</div>
+              <div className="text-xs tracking-widest opacity-90">LIST</div>
             </div>
           </div>
+          <div className="flex-1 p-4 bg-[#c0c0c0]">
+            <div className="text-lg font-bold mb-1">TODO List™</div>
+            <div className="text-xs mb-3">Version 4.5b1 [en]-98194</div>
+            <div className="text-xs mb-2 leading-relaxed">
+              Copyright © 2025 Vamerlen Madoucha💞 All rights reserved.
+            </div>
+            <div className="text-xs text-gray-700 mb-2 leading-relaxed">
+              This software is subject to the license agreement set forth in the <span className="text-blue-700 underline cursor-pointer">license</span>. Please read and agree to all terms before using this software.
+            </div>
+            <div className="text-xs text-gray-700 mb-3 leading-relaxed">
+              TODO List and TODO List Organizer are trademarks of Vamerlen Madoucha registered in the U.S. and other countries.
+            </div>
+            <div className="text-xs text-gray-600 mb-3">
+              🎁 Easter Eggs: Click title 10x, type "clippy", "retro", or use Konami code!
+            </div>
+            <button
+              onClick={() => setShowAbout(false)}
+              className="px-8 py-1.5 bg-[#c0c0c0] win98-button text-sm hover:bg-[#d4d4d4] block mx-auto"
+            >
+              OK
+            </button>
+          </div>
         </div>
-      )}
+      </div>
+    </div>
+  )}
     </div>
   );
 };
