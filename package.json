@@ -1,0 +1,26 @@
+{
+  "name": "todo-list-windows-98",
+  "version": "1.0.0",
+  "main": "main.js",
+  "author": "Vamerlen Madoucha",
+  "license": "MIT",
+  "description": "A todo list app, built in Windows 98 style.",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.todo-list-windows-98.app",
+    "win": {
+      "target": "nsis",
+      "icon": "cardfile-1.ico"
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1"
+  }
+}
